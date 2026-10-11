@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Susut — Kompresi Foto di Browser</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+  :root{
+    --bg: #0b0f0e;
+    --bg-panel: #101614;
+    --line: #1e2b27;
+    --text: #e8f0ed;
+    --text-dim: #7f938c;
+    --accent: #5ee6b8;
+    --accent-dim: #2c5f4d;
+    --warn: #f2b45a;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+
+  *{ margin:0; padding:0; box-sizing:border-box; }
+
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before{
+    content:'';
+    position: fixed; inset:0;
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 64px 64px;
+    opacity: 0.25;
+    pointer-events: none;
+  }
+
+  .wrap{
+    position: relative;
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  header{
+    display:flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 56px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .logo{
+    font-family: var(--mono);
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: -0.02em;
+  }
+  .logo span{ color: var(--accent); }
+
+  .tag{
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .hero{
+    margin-bottom: 48px;
+  }
+
+  h1{
+    font-size: clamp(32px, 5vw, 48px);
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    margin-bottom: 16px;
+  }
+
+  h1 .accent{ color: var(--accent); }
+
+  .sub{
+    color: var(--text-dim);
+    font-size: 16px;
+    max-width: 520px;
+    line-height: 1.5;
+  }
+
+  /* Dropzone */
+  .drop{
+    margin-top: 32px;
+    border: 1.5px dashed var(--line);
+    border-radius: 4px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    background: var(--bg-panel);
+  }
+  .drop:hover, .drop.drag{
+    border-color: var(--accent-dim);
+    background: #10221b;
+  }
+  .drop input{ display:none; }
+  .drop-icon{
+    font-family: var(--mono);
+    font-size: 28px;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .drop-text{ font-size: 15px; color: var(--text); margin-bottom: 4px; }
+  .drop-sub{ font-size: 13px; color: var(--text-dim); font-family: var(--mono); }
+
+  /* Panel: controls + result */
+  .panel{
+    display:none;
+    margin-top: 32px;
+  }
+  .panel.active{ display:block; }
+
+  .compare{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 600px){
+    .compare{ grid-template-columns: 1fr; }
+  }
+
+  .cell{
+    background: var(--bg-panel);
+    padding: 20px;
+  }
+  .cell-label{
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    display:flex;
+    justify-content: space-between;
+  }
+  .cell-label .badge{
+    color: var(--accent);
+  }
+  .cell img{
+    width: 100%;
+    display:block;
+    border-radius: 2px;
+    background: #000;
+    max-height: 280px;
+    object-fit: contain;
+  }
+  .cell-size{
+    font-family: var(--mono);
+    font-size: 24px;
+    font-weight: 700;
+    margin-top: 14px;
+  }
+  .cell-size .unit{ font-size: 13px; color: var(--text-dim); font-weight: 400; margin-left: 4px; }
+
+  .savings-bar{
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 18px 20px;
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .savings-num{
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--accent);
+  }
+  .savings-label{
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  .controls{
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  .ctrl-row{
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  .ctrl-row:last-child{ margin-bottom:0; }
+
+  .ctrl-label{
+    font-size: 13px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    min-width: 110px;
+  }
+
+  .fmt-group{
+    display:flex;
+    gap: 8px;
+  }
+  .fmt-btn{
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 8px 14px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--text-dim);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .fmt-btn.active{
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(94,230,184,0.08);
+  }
+  .fmt-btn:disabled{
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  input[type=range]{
+    -webkit-appearance: none;
+    flex:1;
+    height: 3px;
+    background: var(--line);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  .quality-val{
+    font-family: var(--mono);
+    color: var(--accent);
+    font-size: 13px;
+    min-width: 36px;
+    text-align: right;
+  }
+
+  .actions{
+    display:flex;
+    gap: 12px;
+  }
+  .btn{
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 14px;
+    padding: 13px 24px;
+    border-radius: 3px;
+    border: none;
+    cursor: pointer;
+    flex:1;
+    transition: opacity 0.15s ease;
+  }
+  .btn:hover{ opacity: 0.85; }
+  .btn-primary{
+    background: var(--accent);
+    color: #06120d;
+  }
+  .btn-secondary{
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text);
+  }
+
+  .new-file{
+    text-align:center;
+    margin-top: 8px;
+  }
+  .new-file a{
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .new-file a:hover{ color: var(--accent); }
+
+  .note{
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+  .note .accent{ color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="logo">SUSUT<span>.</span></div>
+    <div class="tag">Client-side · 2026</div>
+  </header>
+
+  <div class="hero">
+    <h1>Kecilkan foto,<br>bukan <span class="accent">kualitasnya.</span></h1>
+    <p class="sub">Kompresi gambar langsung di browser kamu — pakai codec AVIF & WebP generasi terbaru. Tidak ada file yang diunggah ke server mana pun.</p>
+  </div>
+
+  <div class="drop" id="dropzone">
+    <input type="file" id="fileInput" accept="image/*">
+    <div class="drop-icon">↓</div>
+    <div class="drop-text">Klik atau seret foto ke sini</div>
+    <div class="drop-sub">JPG · PNG · WEBP</div>
+  </div>
+
+  <div class="panel" id="panel">
+
+    <div class="savings-bar">
+      <div>
+        <div class="savings-label">Ukuran berkurang</div>
+        <div class="savings-num" id="savingsNum">—</div>
+      </div>
+      <div>
+        <div class="savings-label" style="text-align:right">Format keluaran</div>
+        <div class="savings-num" id="fmtLabel" style="font-size:16px">—</div>
+      </div>
+    </div>
+
+    <div class="compare">
+      <div class="cell">
+        <div class="cell-label"><span>Asli</span></div>
+        <img id="imgOriginal" alt="Gambar asli">
+        <div class="cell-size" id="sizeOriginal">—</div>
+      </div>
+      <div class="cell">
+        <div class="cell-label"><span>Terkompresi</span><span class="badge" id="dimBadge"></span></div>
+        <img id="imgCompressed" alt="Gambar terkompresi">
+        <div class="cell-size" id="sizeCompressed">—</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl-row">
+        <span class="ctrl-label">FORMAT</span>
+        <div class="fmt-group" id="fmtGroup">
+          <button class="fmt-btn" data-fmt="image/avif">AVIF</button>
+          <button class="fmt-btn active" data-fmt="image/webp">WebP</button>
+          <button class="fmt-btn" data-fmt="image/jpeg">JPEG</button>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-label">KUALITAS</span>
+        <input type="range" id="qualitySlider" min="1" max="100" value="75">
+        <span class="quality-val" id="qualityVal">75%</span>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="downloadBtn">Unduh hasil</button>
+      <button class="btn btn-secondary" id="resetBtn">Ganti foto</button>
+    </div>
+  </div>
+
+  <div class="note">
+    <span class="accent">CARA KERJA —</span> Gambar diproses sepenuhnya di perangkatmu memakai Canvas API bawaan browser, lalu di-encode ulang ke format pilihan. AVIF memberi rasio kompresi terbaik namun dukungan browsernya bergantung pada versi Chrome/Firefox/Safari yang dipakai; jika AVIF tidak tersedia di browsermu, opsi itu otomatis dinonaktifkan.
+  </div>
+
+</div>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const panel = document.getElementById('panel');
+const imgOriginal = document.getElementById('imgOriginal');
+const imgCompressed = document.getElementById('imgCompressed');
+const sizeOriginal = document.getElementById('sizeOriginal');
+const sizeCompressed = document.getElementById('sizeCompressed');
+const savingsNum = document.getElementById('savingsNum');
+const fmtLabel = document.getElementById('fmtLabel');
+const dimBadge = document.getElementById('dimBadge');
+const qualitySlider = document.getElementById('qualitySlider');
+const qualityVal = document.getElementById('qualityVal');
+const fmtGroup = document.getElementById('fmtGroup');
+const downloadBtn = document.getElementById('downloadBtn');
+const resetBtn = document.getElementById('resetBtn');
+
+let originalFile = null;
+let originalBitmap = null;
+let currentFormat = 'image/webp';
+let currentBlob = null;
+
+function fmtBytes(bytes){
+  if(bytes < 1024) return { val: bytes, unit: 'B' };
+  if(bytes < 1024*1024) return { val: (bytes/1024).toFixed(1), unit: 'KB' };
+  return { val: (bytes/(1024*1024)).toFixed(2), unit: 'MB' };
+}
+
+function renderSize(el, bytes){
+  const f = fmtBytes(bytes);
+  el.innerHTML = `${f.val}<span class="unit">${f.unit}</span>`;
+}
+
+// Detect format support.
+// Critical check: the browser must return a blob whose *actual* type
+// matches what we asked for. Some browsers silently fall back to PNG
+// when they can't really encode the requested format, which produces
+// a blob that "succeeds" but is lossless and much larger than expected.
+async function checkFormatSupport(mime){
+  return new Promise(resolve => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 16; canvas.height = 16;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#5ee6b8';
+    ctx.fillRect(0, 0, 16, 16);
+    try{
+      canvas.toBlob(blob => {
+        resolve(!!blob && blob.type === mime);
+      }, mime, 0.5);
+    }catch(e){
+      resolve(false);
+    }
+  });
+}
+
+async function initFormatSupport(){
+  const avifBtn = fmtGroup.querySelector('[data-fmt="image/avif"]');
+  const supportsAvif = await checkFormatSupport('image/avif');
+  if(!supportsAvif){
+    avifBtn.disabled = true;
+    avifBtn.title = 'Browser ini belum mendukung AVIF';
+  }
+}
+initFormatSupport();
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => {
+  if(e.target.files.length) handleFile(e.target.files[0]);
+});
+
+async function handleFile(file){
+  if(!file.type.startsWith('image/')) return;
+  originalFile = file;
+  originalBitmap = await createImageBitmap(file);
+
+  imgOriginal.src = URL.createObjectURL(file);
+  renderSize(sizeOriginal, file.size);
+  dimBadge.textContent = `${originalBitmap.width}×${originalBitmap.height}`;
+
+  panel.classList.add('active');
+  compress();
+}
+
+let compressTimeout;
+function compress(){
+  clearTimeout(compressTimeout);
+  compressTimeout = setTimeout(doCompress, 80);
+}
+
+function doCompress(){
+  if(!originalBitmap) return;
+  const canvas = document.createElement('canvas');
+  canvas.width = originalBitmap.width;
+  canvas.height = originalBitmap.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(originalBitmap, 0, 0);
+
+  const quality = qualitySlider.value / 100;
+
+  canvas.toBlob(blob => {
+    if(!blob){
+      fmtLabel.textContent = 'Gagal';
+      return;
+    }
+
+    const fmtNames = { 'image/avif': 'AVIF', 'image/webp': 'WebP', 'image/jpeg': 'JPEG' };
+
+    // Guard against silent fallback: if we asked for AVIF/WebP but the
+    // browser actually handed back something else (commonly PNG), warn
+    // instead of showing a misleadingly "compressed" bloated result.
+    if(blob.type !== currentFormat){
+      fmtLabel.textContent = `Fallback (${blob.type.split('/')[1] || '?'})`;
+      fmtLabel.style.color = 'var(--warn)';
+      currentBlob = blob;
+      imgCompressed.src = URL.createObjectURL(blob);
+      renderSize(sizeCompressed, blob.size);
+      savingsNum.textContent = '⚠';
+      savingsNum.style.color = 'var(--warn)';
+      return;
+    }
+
+    fmtLabel.style.color = '';
+    currentBlob = blob;
+    imgCompressed.src = URL.createObjectURL(blob);
+    renderSize(sizeCompressed, blob.size);
+
+    const reduction = originalFile.size > 0
+      ? Math.round((1 - blob.size / originalFile.size) * 100)
+      : 0;
+    savingsNum.textContent = (reduction >= 0 ? '−' : '+') + Math.abs(reduction) + '%';
+    savingsNum.style.color = reduction >= 0 ? 'var(--accent)' : 'var(--warn)';
+    fmtLabel.textContent = fmtNames[currentFormat];
+  }, currentFormat, quality);
+}
+
+qualitySlider.addEventListener('input', () => {
+  qualityVal.textContent = qualitySlider.value + '%';
+  compress();
+});
+
+fmtGroup.addEventListener('click', e => {
+  const btn = e.target.closest('.fmt-btn');
+  if(!btn || btn.disabled) return;
+  fmtGroup.querySelectorAll('.fmt-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentFormat = btn.dataset.fmt;
+  compress();
+});
+
+downloadBtn.addEventListener('click', () => {
+  if(!currentBlob) return;
+  const ext = currentFormat.split('/')[1];
+  const baseName = originalFile.name.replace(/\.[^/.]+$/, '');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(currentBlob);
+  a.download = `${baseName}-compressed.${ext}`;
+  a.click();
+});
+
+resetBtn.addEventListener('click', () => {
+  originalFile = null;
+  originalBitmap = null;
+  currentBlob = null;
+  fileInput.value = '';
+  panel.classList.remove('active');
+});
+</script>
+
+</body>
+</html>
